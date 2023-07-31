@@ -1,6 +1,8 @@
+package com.fedorov.andrii.andriiovych.git_test
+
 fun main() {
     repeat(1) {
-        val gameField = GameField(width = 50, height = 10)
+        val gameField = GameField(width = 135, height = 18)
         val labyrinth = Labyrinth(gameField = gameField)
         labyrinth.createLabyrinth()
         val pathfinderManager = PathfinderManager(labyrinth = labyrinth)
@@ -16,7 +18,7 @@ fun <T> Array<Array<T>>.print() {
 }
 
 data class Step(val hor: Int, val ver: Int)
-open class Worker(open var ver: Int, open var hor: Int, open val moves: MutableSet<Step>)
+data class Worker(val ver: Int, val hor: Int, val moves: Set<Step>)
 data class GameField(val width: Int, val height: Int)
 class Labyrinth(private val gameField: GameField) {
 
@@ -29,8 +31,8 @@ class Labyrinth(private val gameField: GameField) {
     private val mapSize =
         (gameField.width * gameField.height) - (gameField.width + gameField.height) * 2
     private var countSteps = 0
-    private val mainWorker = Worker(1, 1, mutableSetOf())
-    private val passageWorker = Worker(map.size - 2, map[0].size - 2, mutableSetOf())
+    private var mainWorker = Worker(1, 1, setOf())
+    private var passageWorker = Worker(map.size - 2, map[0].size - 2, setOf())
 
     fun createLabyrinth() {
         createMap()
@@ -40,27 +42,26 @@ class Labyrinth(private val gameField: GameField) {
 
     private fun createMap() {
         while (true) {
-            nextStep(worker = mainWorker)
+            mainWorker = nextStep(worker = mainWorker)
             if (isMapCreate()) break
         }
     }
 
     private fun createPassage() {
         while (true) {
-            nextStep(worker = passageWorker)
+            passageWorker = nextStep(worker = passageWorker)
             if (mainWorker.moves.contains(passageWorker.moves.last())) break
         }
     }
 
-    private fun nextStep(worker: Worker) {
+    private fun nextStep(worker: Worker): Worker {
         val step = searchCorrectDirections(worker = worker)
-        worker.moves.add(step)
-        worker.ver = step.ver
-        worker.hor = step.hor
+        val newMoves = worker.moves + step
         if (map[step.ver][step.hor] == FILLED_CELL) {
             map[step.ver][step.hor] = EMPTY_CELL
             countSteps++
         }
+        return Worker(step.ver, step.hor, newMoves)
     }
 
     private fun searchCorrectDirections(worker: Worker): Step {
@@ -104,18 +105,17 @@ class Labyrinth(private val gameField: GameField) {
 }
 
 
-class PathfinderWorker(
-    override var ver: Int,
-    override var hor: Int,
-    override val moves: MutableSet<Step>,
-    val crossroads: MutableList<MutableList<Step>>,
-    val wrongStep: MutableSet<Step>
-) : Worker(ver, hor, moves)
+data class PathfinderWorker(
+    val ver: Int,
+    val hor: Int,
+    val moves: Set<Step>,
+    val crossroads: List<List<Step>>,
+    val wrongStep: Set<Step>
+)
 
 class PathfinderManager(val labyrinth: Labyrinth) {
     private var map = labyrinth.getMap().also { it[1][0] = PATH_CELL }
-    private var worker =
-        PathfinderWorker(1, 0, mutableSetOf(), mutableListOf(mutableListOf()), mutableSetOf())
+    private var worker = PathfinderWorker(1, 0, setOf(), listOf(listOf()), setOf())
 
     fun createPath() {
         while (true) {
@@ -138,45 +138,48 @@ class PathfinderManager(val labyrinth: Labyrinth) {
         val up = Step(worker.hor, worker.ver + 1)
         val down = Step(worker.hor, worker.ver - 1)
         if (worker.ver < map.size - 1 && map[up.ver][up.hor] ==
-            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(up)) directions.add(up)
+            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(up)
+        ) directions.add(up)
         if (worker.ver > 0 && map[down.ver][down.hor] ==
-            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(down)) directions.add(down)
+            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(down)
+        ) directions.add(down)
         if (worker.hor > 0 && map[left.ver][left.hor] ==
-            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(left)) directions.add(left)
+            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(left)
+        ) directions.add(left)
         if (worker.hor < map[0].size - 1 && map[right.ver][right.hor] ==
-            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(right)) directions.add(right)
+            Labyrinth.EMPTY_CELL && !worker.wrongStep.contains(right)
+        ) directions.add(right)
         chooseDirection(directions = directions)
     }
 
-    private fun chooseDirection(directions: MutableList<Step>) {
+    private fun chooseDirection(directions: List<Step>) {
         if (directions.isEmpty()) {
             restartSearch(wrongWorker = worker)
             return
         }
-        if (directions.size > 1) {
-            worker.crossroads.add(directions)
-            createNextStep(worker = worker, directions.first())
+        worker = if (directions.size > 1) {
+            createNextStep(worker = worker, directions.first(), directions = directions)
         } else {
-            createNextStep(worker = worker, step = directions.random())
+            createNextStep(worker = worker, step = directions.random(), directions = directions)
         }
     }
 
-    private fun createNextStep(worker: PathfinderWorker, step: Step) {
-        worker.ver = step.ver
-        worker.hor = step.hor
-        worker.moves.add(step)
-        map[worker.ver][worker.hor] = PATH_CELL
+    private fun createNextStep(
+        worker: PathfinderWorker,
+        step: Step,
+        directions: List<Step>
+    ): PathfinderWorker {
+        val crossroad = worker.crossroads.toMutableList().also { it.add(directions) }
+        val moves = worker.moves + step
+        val ver = step.ver
+        val hor = step.hor
+        map[step.ver][step.hor] = PATH_CELL
+        return worker.copy(ver = ver, hor = hor, moves = moves, crossroads = crossroad)
     }
 
     private fun restartSearch(wrongWorker: PathfinderWorker) {
-        worker.wrongStep.add(wrongWorker.crossroads.last().first())
-        worker = PathfinderWorker(
-            1,
-            0,
-            mutableSetOf(),
-            mutableListOf(mutableListOf()),
-            wrongWorker.wrongStep
-        )
+        val wrongStep = worker.wrongStep + wrongWorker.crossroads.last().first()
+        worker = PathfinderWorker(1, 0, setOf(), listOf(listOf()), wrongStep)
         map = labyrinth.getMap().also { it[1][0] = PATH_CELL }
     }
 
