@@ -190,14 +190,10 @@ class Pathfinder(
         val left = Step(hor - 1, ver)
         val up = Step(hor, ver + 1)
         val down = Step(hor, ver - 1)
-        if (hor < map[0].size - 1 && checkWrongDirections(step = right)
-        ) directions.add(right)
-        if (ver > 0 && checkWrongDirections(step = down)
-        ) directions.add(down)
-        if (ver < map.size - 1 && checkWrongDirections(step = up)
-        ) directions.add(up)
-        if (hor > 0 && checkWrongDirections(step = left)
-        ) directions.add(left)
+        if (hor < map[0].size - 1 && checkWrongDirections(step = right)) directions.add(right)
+        if (ver > 0 && checkWrongDirections(step = down)) directions.add(down)
+        if (ver < map.size - 1 && checkWrongDirections(step = up) ) directions.add(up)
+        if (hor > 0 && checkWrongDirections(step = left)) directions.add(left)
         chooseDirection(directions = directions)
     }
 
@@ -214,10 +210,8 @@ class Pathfinder(
         }
         if (directions.size > 1) {
             crossroads.add(directions)
-            createNextStep(step = directions.first())
-        } else {
-            createNextStep(step = directions.random())
-        }
+        } 
+        createNextStep(step = directions.first())
     }
 
     private fun createNextStep(step: Step) {
