@@ -30,7 +30,9 @@ private fun Step.isCorrect(hor: Int, ver: Int, moves: Set<Step>): Boolean {
 }
 
 data class Step(val hor: Int, val ver: Int)
+
 data class Field(val width: Int, val height: Int)
+
 class Labyrinth(private val field: Field) {
 
     private val map = Array(field.height+2) { Array(field.width+2) { FILLED_CELL } }
