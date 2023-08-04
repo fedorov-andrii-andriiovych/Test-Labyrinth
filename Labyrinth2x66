@@ -1,0 +1,234 @@
+fun main() {
+        val field = Field(width = 50, height = 50)
+        val labyrinth = Labyrinth(field = field)
+        labyrinth.createLabyrinth()
+        val pathfinderManager = PathfinderManager(labyrinth = labyrinth)
+        pathfinderManager.createPath()
+}
+
+fun <T> Array<Array<T>>.print() {
+    this.forEach { hor ->
+        println(hor.joinToString(""))
+    }
+}
+
+private fun <T> Array<Array<T>>.isIncorrect(): Boolean {
+    if (this.size < 10 || this[0].size < 10) {
+        println("Incorrect map")
+        return true
+    }
+    return false
+}
+
+private fun Step.isCorrect(hor: Int, ver: Int, moves: Set<Step>): Boolean {
+    if (this.hor + 1 != hor && moves.contains(Step(this.hor + 1, this.ver)) ||
+        (this.hor - 1 != hor && moves.contains(Step(this.hor - 1, this.ver))) ||
+        (this.ver + 1 != ver && moves.contains(Step(this.hor, this.ver + 1))) ||
+        (this.ver - 1 != ver && moves.contains(Step(this.hor, this.ver - 1)))
+    ) return false
+    return true
+}
+
+data class Step(val hor: Int, val ver: Int)
+data class Field(val width: Int, val height: Int)
+class Labyrinth(private val field: Field) {
+
+    private val map = Array(field.height+2) { Array(field.width+2) { FILLED_CELL } }
+    private val mapSize = (map.size * map[0].size) - (map.size + map[0].size - 1) * 2
+    private var countSteps = 0
+    private val mapBuilder = Builder(map = map, ver = 1, hor = 1, moves = mutableSetOf())
+    private val pathBuilder =
+        Builder(map = map, ver = map.size - 2, hor = map[0].size - 2, moves = mutableSetOf())
+
+    fun getMap(): Array<Array<String>> {
+        return Array(map.size) { row -> map[row].copyOf() }
+    }
+
+    fun createLabyrinth() {
+        if (map.isIncorrect()) return
+        createMap()
+        createPassage()
+        map.print()
+    }
+
+    private fun createMap() {
+        while (true) {
+            countSteps += mapBuilder.nextStep()
+            if (isMapCreate()) break
+        }
+    }
+
+    private fun createPassage() {
+        while (true) {
+            countSteps += pathBuilder.nextStep()
+            if (pathBuilder.isPathCreated(mapBuilder.getMoves())) {
+                map.apply {
+                    this[1][0] = EMPTY_CELL
+                    this[1][1] = EMPTY_CELL
+                    this[this.size - 2][this[1].size - 1] = EMPTY_CELL
+                    this[this.size - 2][this[1].size - 2] = EMPTY_CELL
+                }
+                break
+            }
+        }
+    }
+
+    private fun isMapCreate(): Boolean {
+        return ((countSteps.toDouble() / mapSize) * 100) > PERCENT_OF_MAP
+    }
+
+    companion object {
+        private const val PERCENT_OF_MAP = 55
+        const val FILLED_CELL = "⿳"
+        const val EMPTY_CELL = "ㆍ"
+    }
+}
+
+class Builder(
+    private val map: Array<Array<String>>,
+    private var ver: Int,
+    private var hor: Int,
+    private val moves: MutableSet<Step>
+) {
+    fun getMoves(): Set<Step> = moves
+
+    fun isPathCreated(mainMoves: Set<Step>): Boolean {
+        return mainMoves.contains(moves.last())
+    }
+
+    fun nextStep(): Int {
+        val step = searchCorrectDirections()
+        moves.add(step)
+        ver = step.ver
+        hor = step.hor
+        if (map[step.ver][step.hor] == Labyrinth.FILLED_CELL) {
+            map[step.ver][step.hor] = Labyrinth.EMPTY_CELL
+            return TRUE
+        }
+        return FALSE
+    }
+
+    private fun searchCorrectDirections(): Step {
+        val directions = mutableListOf<Step>()
+        val right = Step(hor + 1, ver)
+        val left = Step(hor - 1, ver)
+        val up = Step(hor, ver + 1)
+        val down = Step(hor, ver - 1)
+        if (hor > 1 && left.isCorrect(ver = ver, hor = hor, moves = moves)) directions.add(left)
+        if (hor < map[0].size - 2 && right.isCorrect(ver = ver, hor = hor, moves = moves)
+        ) directions.add(right)
+        if (ver > 1 && down.isCorrect(ver = ver, hor = hor, moves = moves)) directions.add(down)
+        if (ver < map.size - 2 && up.isCorrect(ver = ver, hor = hor, moves = moves))
+            directions.add(up)
+        return directions.randomOrNull() ?: getRandomStep()
+    }
+
+    private fun getRandomStep(): Step = moves.random()
+
+    companion object {
+        private const val TRUE = 1
+        private const val FALSE = 0
+    }
+}
+
+class PathfinderManager(private val labyrinth: Labyrinth) {
+    private var map = labyrinth.getMap()
+    private val pathfinder =
+        Pathfinder(
+            map = map,
+            ver = 1,
+            hor = 0,
+            moves = mutableSetOf(),
+            crossroads = mutableListOf(mutableListOf()),
+            wrongStep = mutableSetOf(),
+        )
+
+    fun createPath() {
+        if (map.isIncorrect()) return
+        while (true) {
+            if (pathfinder.nextStep()) {
+                map.print()
+                break
+            }
+        }
+    }
+
+    companion object {
+        const val PATH_CELL = "❌"
+    }
+
+}
+
+class Pathfinder(
+    private val map: Array<Array<String>>,
+    private var ver: Int,
+    private var hor: Int,
+    private var moves: MutableSet<Step>,
+    private var crossroads: MutableList<MutableList<Step>>,
+    private val wrongStep: MutableSet<Step>,
+) {
+    fun nextStep(): Boolean {
+        if (moves.isNotEmpty() && moves.last() == Step(
+                map[0].size - 1,
+                map.size - 2
+            )
+        ) {
+            moves.forEach { map[it.ver][it.hor] = PathfinderManager.PATH_CELL }
+            map[1][0] = PathfinderManager.PATH_CELL
+            return true
+        } else {
+            searchCorrectDirections()
+        }
+        return false
+    }
+
+    private fun searchCorrectDirections() {
+        val directions = mutableListOf<Step>()
+        val right = Step(hor + 1, ver)
+        val left = Step(hor - 1, ver)
+        val up = Step(hor, ver + 1)
+        val down = Step(hor, ver - 1)
+        if (hor < map[0].size - 1 && checkWrongDirections(step = right)
+        ) directions.add(right)
+        if (ver > 0 && checkWrongDirections(step = down)
+        ) directions.add(down)
+        if (ver < map.size - 1 && checkWrongDirections(step = up)
+        ) directions.add(up)
+        if (hor > 0 && checkWrongDirections(step = left)
+        ) directions.add(left)
+        chooseDirection(directions = directions)
+    }
+
+    private fun checkWrongDirections(step: Step): Boolean {
+        return map[step.ver][step.hor] == Labyrinth.EMPTY_CELL
+                && !wrongStep.contains(step) && !moves.contains(step)
+                && step.isCorrect(hor = hor, ver = ver, moves = moves)
+    }
+
+    private fun chooseDirection(directions: MutableList<Step>) {
+        if (directions.isEmpty()) {
+            restartSearch()
+            return
+        }
+        if (directions.size > 1) {
+            crossroads.add(directions)
+            createNextStep(step = directions.first())
+        } else {
+            createNextStep(step = directions.random())
+        }
+    }
+
+    private fun createNextStep(step: Step) {
+        ver = step.ver
+        hor = step.hor
+        moves.add(step)
+    }
+
+    private fun restartSearch() {
+        wrongStep.add(crossroads.last().first())
+        ver = 1
+        hor = 0
+        moves = mutableSetOf()
+        crossroads = mutableListOf(mutableListOf())
+    }
+}
